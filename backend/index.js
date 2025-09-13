@@ -1,43 +1,28 @@
+require("dotenv").config(); // Add this at the very top
 const express = require("express");
-
 const cors = require("cors");
 const mongoose = require("mongoose");
 const Job = require("./models/Job");
-// main().catch(err => console.log(err));
 
 var compiler = require('compilex');
-var options = {stats : true}; //prints stats on console 
+var options = { stats: true };
 compiler.init(options);
 
 main().catch(err => console.log(err));
 
 async function main() {
-  await mongoose.connect('mongodb://127.0.0.1/test');
-  (err) => {
-    if (err){
-    console.error(err);
-    process.exit(1);
-    // err && console.error(err);
-    // console.log("Successfully connected to MongoDB: compilerdb");
-  }
-  console.log("You are connected to MongoDB");
+  // MongoDB Atlas connection using environment variable
+  await mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+
+  console.log("You are connected to MongoDB Atlas");
 }
-};
-// getting-started.js
-// const mongoose = require('mongoose');
-
-// main().catch(err => console.log(err));
-
-// async function main() {
-//   await mongoose.connect('mongodb://127.0.0.1:27017/test');
-
-//   // use `await mongoose.connect('mongodb://user:password@127.0.0.1:27017/test');` if your database has auth enabled
-// }
 
 const { generateFile } = require("./generateFile");
-
 const { addJobToQueue } = require("./jobQueue");
-// const Job = require("./models/Job");
+const axios = require("axios");
 
 const app = express();
 
@@ -46,66 +31,62 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.post("/run", async (req, res) => {
-  const { language = "cpp", code,input } = req.body;
+  const { language = "cpp", code, input } = req.body;
 
-  console.log(language, "Length:", code.length);
+  if (!code) return res.status(400).json({ success: false, error: "Empty code body!" });
 
-  // var envData = { OS : "windows" , cmd : "g++"};
-  // compiler.compileCPPWithInput( envData, code , input , function (data) {
-  //  console.log(data.output);
-  // });
-
-
-
-  if (code === undefined) {
-    return res.status(400).json({ success: false, error: "Empty code body!" });
-  }
-  // need to generate a c++ file with content from the request
   const filepath = await generateFile(language, code);
-  // const acc = await ac(input);
-  // write into DB
-  const job = await new Job({ language, filepath }).save();
+
+  // Save job in the database
+  const job = await new Job({ language, filepath, status: "pending" }).save();
   const jobId = job["_id"];
   addJobToQueue(jobId);
   res.status(201).json({ jobId });
+
+  // JDoodle API
+  const clientId = process.env.JDOODLE_CLIENT_ID;
+  const clientSecret = process.env.JDOODLE_CLIENT_SECRET;
+
+  const langMap = {
+    cpp: { language: "cpp17", versionIndex: "0" },
+    python: { language: "python3", versionIndex: "3" },
+  };
+  const jdoodleLang = langMap[language] || langMap["cpp"];
+
+  try {
+    const response = await axios.post("https://api.jdoodle.com/v1/execute", {
+      clientId,
+      clientSecret,
+      script: code,
+      stdin: input || "",
+      language: jdoodleLang.language,
+      versionIndex: jdoodleLang.versionIndex,
+    });
+    await Job.findByIdAndUpdate(jobId, {
+      status: "success",
+      output: response.data.output,
+      completedAt: new Date(),
+    });
+  } catch (err) {
+    await Job.findByIdAndUpdate(jobId, {
+      status: "error",
+      output: err.message,
+      completedAt: new Date(),
+    });
+  }
 });
 
 app.get("/status", async (req, res) => {
   const jobId = req.query.id;
 
-  if (jobId === undefined) {
-    return res
-      .status(400)
-      .json({ success: false, error: "missing id query param" });
-  }
+  if (!jobId) return res.status(400).json({ success: false, error: "Missing id query param" });
 
   const job = await Job.findById(jobId);
-
-  if (job === undefined) {
-    return res.status(400).json({ success: false, error: "couldn't find job" });
-  }
+  if (!job) return res.status(400).json({ success: false, error: "Couldn't find job" });
 
   return res.status(200).json({ success: true, job });
 });
-// return res.json({hello : "world"});});
-//   const jobId = req.query.id;
 
-//   if (jobId === undefined) {
-//     return res
-//       .status(400)
-//       .json({ success: false, error: "missing id query param" });
-//   }
-
-//   const job = await Job.findById(jobId);
-
-//   if (job === undefined) {
-//     return res.status(400).json({ success: false, error: "couldn't find job" });
-//   }
-
-//   return res.status(200).json({ success: true, job });
-
-// });
-
-app.listen(5006, () => {
-  console.log(`Listening on port 5000!`);
+app.listen(process.env.PORT || 5006, () => {
+  console.log(`Listening on port ${process.env.PORT || 5006}!`);
 });

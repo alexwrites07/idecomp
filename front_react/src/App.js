@@ -65,7 +65,7 @@ const handleSubmit = async () => {
     setStatus(null);
     setJobId(null);
     setJobDetails(null);
-    const { data } = await axios.post("https://react-one.onrender.com/run", payload);
+    const { data } = await axios.post("http://localhost:5006/run", payload);
     if (data.jobId) {
       setJobId(data.jobId);
       setStatus("Submitted.");
@@ -74,7 +74,7 @@ const handleSubmit = async () => {
       //  kll=setInterval({df},1000);
       pollInterval = setInterval(async () => {
         const { data: statusRes } = await axios.get(
-          `https://react-one.onrender.com/status`,
+          `http://localhost:5006/status`,
           {
             params: {
               id: data.jobId,

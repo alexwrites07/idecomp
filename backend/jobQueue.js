@@ -19,7 +19,7 @@ jobQueue.process(NUM_WORKERS, async ({ data }) => {
     if (job.language === "cpp") {
       output = await executeCpp(job.filepath);
     } else if (job.language === "py") {
-      output = await executePy(job.filepath);
+      output = await executeCpp(job.filepath);
     }
     job["completedAt"] = new Date();
     job["output"] = output;

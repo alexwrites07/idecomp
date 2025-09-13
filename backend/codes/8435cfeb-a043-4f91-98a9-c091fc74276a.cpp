@@ -1,8 +1,0 @@
-#include <iostream>
-using namespace std;
-int main()
-{
-for (int 0;i<10;i++)    
-cout <<"HELLO"<<endl;
-    return 0;
-}

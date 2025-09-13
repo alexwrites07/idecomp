@@ -1,1 +1,0 @@
-print("omesh bara!")
