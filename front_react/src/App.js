@@ -70,7 +70,7 @@ const handleSubmit = async () => {
       setJobId(data.jobId);
       setStatus("Submitted.");
       
-      // poll here
+      // poll here..
       //  kll=setInterval({df},1000);
       pollInterval = setInterval(async () => {
         const { data: statusRes } = await axios.get(
